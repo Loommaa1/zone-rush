@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zone Rush</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">{ "imports": { "three": "/three/build/three.module.js" } }</script>
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- Écran d'accueil (la carte 3D tourne en fond) -->
+  <div id="menu" class="home">
+    <div class="home-shade"></div>
+    <header class="home-top">
+      <div class="brand"><span class="brand-mark">ZR</span><span class="brand-name">Zone Rush</span></div>
+      <button class="ghost-btn openSettings">⚙ Paramètres et touches</button>
+    </header>
+
+    <main class="home-main">
+      <section class="hero">
+        <p class="kicker">Action · Construction · Multijoueur</p>
+        <h1 class="title">ZONE<br /><span>RUSH</span></h1>
+        <p class="tagline">Tire, construis, modifie, recommence.<br />Choisis ton mode et entre dans l'arène.</p>
+        <label class="name-field">
+          <span>Ton pseudo</span>
+          <input id="name" maxlength="16" placeholder="Ex. : Ricochet" autocomplete="off" />
+        </label>
+      </section>
+
+      <section class="modes">
+        <article class="mode-card" data-mode="libre">
+          <div class="mode-head">
+            <span class="mode-badge libre">🏝</span>
+            <div>
+              <h2>Mode libre</h2>
+              <p class="mode-sub">Grande île · jusqu'à 50 joueurs</p>
+            </div>
+          </div>
+          <ul class="mode-points">
+            <li>Maisons, entrepôts et armes à ramasser</li>
+            <li>Bots ajoutés automatiquement</li>
+            <li>Réapparition infinie, classement des éliminations</li>
+          </ul>
+          <div class="mode-foot">
+            <span class="mode-status" data-status="libre">Recherche du serveur…</span>
+            <button class="play-btn" data-play="libre">Jouer</button>
+          </div>
+        </article>
+
+        <article class="mode-card duel" data-mode="1v1">
+          <div class="mode-head">
+            <span class="mode-badge duel">⚔</span>
+            <div>
+              <h2>Duel 1v1</h2>
+              <p class="mode-sub">Petite arène fermée · 2 combattants</p>
+            </div>
+          </div>
+          <ul class="mode-points">
+            <li>Fusil à pompe, fusil d'assaut et sniper dès le départ</li>
+            <li>Seul ? Un bot t'affronte. À deux : vrai 1 contre 1</li>
+            <li>Réapparition en 2 s à l'opposé de l'adversaire</li>
+          </ul>
+          <div class="mode-foot">
+            <span class="mode-status" data-status="1v1">Recherche du serveur…</span>
+            <button class="play-btn" data-play="1v1">Jouer</button>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <footer class="home-foot">
+      <div class="chips" id="homeKeys"></div>
+      <p class="home-note">Astuce : ouvre deux onglets pour jouer contre toi-même, ou invite quelqu'un sur ton réseau Wi-Fi.</p>
+    </footer>
+  </div>
+
+  <!-- Pause (quand la souris est libérée) -->
+  <div id="pause" class="overlay hidden">
+    <div class="panel">
+      <h2 id="pauseTitle">Pause</h2>
+      <div id="lobbyBox">
+        <p id="lobbyInfo"></p>
+        <div class="row">
+          <button data-bots="1">+1 bot</button>
+          <button data-bots="5">+5 bots</button>
+          <button data-bots="20">+20 bots</button>
+          <button id="removeBots">Retirer les bots</button>
+        </div>
+      </div>
+      <button id="resume" class="big">Cliquer pour jouer</button>
+      <button class="openSettings">Paramètres et touches</button>
+      <button id="backHome">Retour à l'accueil</button>
+      <div id="keyHelp" class="hint"></div>
+    </div>
+  </div>
+
+  <!-- Paramètres -->
+  <!-- Inventaire -->
+  <div id="inventory" class="overlay hidden">
+    <div class="inv-panel">
+      <div class="inv-head">
+        <h2>Inventaire</h2>
+        <div class="inv-stats" id="invStats"></div>
+        <button id="closeInventory" class="ghost-btn">Fermer <b id="invKey"></b></button>
+      </div>
+      <h3>Armes <small>clic = prendre en main</small></h3>
+      <div class="inv-grid" id="invWeapons"></div>
+      <h3>Soins <small>clic = utiliser</small></h3>
+      <div class="inv-grid" id="invItems"></div>
+      <div class="inv-ammo" id="invAmmo"></div>
+    </div>
+  </div>
+
+  <div id="settings" class="overlay hidden">
+    <div class="panel wide">
+      <h2>Paramètres</h2>
+      <label class="sens">Sensibilité souris <input id="sens" type="range" min="0.5" max="5" step="0.1" /> <span id="sensVal"></span></label>
+      <p class="hint">Clique sur une action puis appuie sur une touche, un bouton de la souris ou tourne la molette (Échap pour annuler).</p>
+      <div id="keyList"></div>
+      <div class="row">
+        <button id="resetKeys">Touches par défaut</button>
+        <button id="closeSettings" class="big">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Interface en jeu -->
+  <div id="hud" class="hidden">
+    <div id="scope"></div>
+    <div id="crosshair"></div>
+    <div id="hitmarker"></div>
+    <div id="damage"></div>
+    <div id="topbar"><span id="aliveCount"></span><span id="zoneInfo"></span></div>
+    <div id="center"></div>
+    <div id="killfeed"></div>
+    <canvas id="minimap" width="180" height="180"></canvas>
+    <div id="leaderboard"></div>
+    <div id="bottomLeft">
+      <div class="bar"><div id="shieldBar" class="fill shield"></div><span id="shieldTxt"></span></div>
+      <div class="bar"><div id="hpBar" class="fill hp"></div><span id="hpTxt"></span></div>
+      <div id="mats"></div>
+    </div>
+    <div id="slots"></div>
+    <div id="itemBar"></div>
+    <div id="useBar"><span id="useText"></span><div class="track"><div id="useFill"></div></div></div>
+    <div id="prompt"></div>
+    <div id="buildMode">MODE CONSTRUCTION</div>
+  </div>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
